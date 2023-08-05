@@ -49,7 +49,8 @@ def whats_new(session):
         version_link = urljoin(whats_new_url, version_a_tag['href'])
         response = get_response(session, version_link)
         if response is None:
-            logging.warning(NOT_FOUND_MESSAGE.format(version_link=version_link))
+            logging.warning(NOT_FOUND_MESSAGE.format(version_link=version_link)
+                            )
             continue
         soup = create_soup(session, version_link)
         h1 = find_tag(soup, 'h1')

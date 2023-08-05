@@ -9,6 +9,7 @@ from constants import (BASE_DIR, DATETIME_FORMAT, FILE_CHOICE, PRETTY_CHOICE,
 
 LOG_RESULT_MESSAGE = 'Файл с результатами был сохранён: {}'
 
+
 def control_output(results, cli_args):
     """Вызывает соответствующую функцию вывода."""
     output = cli_args.output

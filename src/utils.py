@@ -27,6 +27,7 @@ def find_tag(soup, tag, attrs=None):
         raise ParserFindTagException(error_message)
     return searched_tag
 
+
 def create_soup(session, url):
     response = get_response(session, url)
     return BeautifulSoup(response.text, 'lxml')
