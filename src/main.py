@@ -3,13 +3,32 @@ import re
 from urllib.parse import urljoin
 
 import requests_cache
-from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 from configs import configure_argument_parser, configure_logging
-from constants import BASE_DIR, EXPECTED_STATUS, MAIN_DOC_URL, MAIN_PEP_URL
+from constants import (BASE_DIR, DOWNLOADS_DIR, EXPECTED_STATUS, MAIN_DOC_URL,
+                       MAIN_PEP_URL)
+from exceptions import ParserFindTagException
 from outputs import control_output
-from utils import find_tag, get_response
+from utils import create_soup, find_tag, get_response
+
+WHATS_NEW_TITLE = ('Ссылка на статью', 'Заголовок', 'Редактор, Автор')
+NOT_FOUND_MESSAGE = 'Не удалось получить ответ для URL: {version_link}'
+LATEST_VERSIONS_MESSAGE = 'Ничего не найдено'
+LATEST_VERSIONS_TITLE = ('Ссылка на документацию', 'Версия', 'Статус')
+DOWNLOAD_MESSAGE = 'Архив был загружен и сохранён: {archive_path}'
+PEPS_TITLE = ('Статус', 'Количество')
+INCORRECT_STATUS_MESSAGE = (
+    'Несовпадающие статусы:\n'
+    '{pep_link}\n'
+    'Статус в карточке: {status_on_peps_page}\n'
+    'Ожидаемые статусы: {expected_status}'
+)
+PEPS_TOTAL = 'Всего'
+PARSER_START_MESSAGE = 'Парсер запущен'
+PARSER_ARGS_MESSAGE = 'Аргументы командной строки: {args}'
+PARSER_STOP_MESSAGE = 'Парсер завершил работу.'
+ERROR_MESSAGE = 'Произошла шибка: {error}'
 
 
 def whats_new(session):
@@ -18,20 +37,21 @@ def whats_new(session):
     response = get_response(session, whats_new_url)
     if response is None:
         return
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = create_soup(session, whats_new_url)
     main_div = find_tag(soup, 'section', attrs={'id': 'what-s-new-in-python'})
     div_with_ul = find_tag(main_div, 'div', attrs={'class': 'toctree-wrapper'})
     sections_by_python = div_with_ul.find_all('li',
                                               attrs={'class': 'toctree-l1'})
-    results = [('Ссылка на статью', 'Заголовок', 'Редактор, Автор')]
+    results = [WHATS_NEW_TITLE]
 
     for section in tqdm(sections_by_python):
         version_a_tag = find_tag(section, 'a')
         version_link = urljoin(whats_new_url, version_a_tag['href'])
         response = get_response(session, version_link)
         if response is None:
+            logging.warning(NOT_FOUND_MESSAGE.format(version_link=version_link))
             continue
-        soup = BeautifulSoup(response.text, 'lxml')
+        soup = create_soup(session, version_link)
         h1 = find_tag(soup, 'h1')
         h1_text = h1.text.replace(chr(182), '')
         dl = find_tag(soup, 'dl')
@@ -42,10 +62,7 @@ def whats_new(session):
 
 def latest_versions(session):
     """Собирает данные об актуальных версиях."""
-    response = get_response(session, MAIN_DOC_URL)
-    if response is None:
-        return
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = create_soup(session, MAIN_DOC_URL)
     sidebar = find_tag(soup, 'div', {'class': 'sphinxsidebarwrapper'})
     ul_tags = sidebar.find_all('ul')
     for ul in ul_tags:
@@ -53,8 +70,8 @@ def latest_versions(session):
             a_tags = ul.find_all('a')
             break
     else:
-        raise Exception('Ничего не нашлось')
-    results = [('Ссылка на документацию', 'Версия', 'Статус')]
+        raise ParserFindTagException(LATEST_VERSIONS_MESSAGE)
+    results = [LATEST_VERSIONS_TITLE]
     pattern = r'Python (?P<version>\d\.\d+) \((?P<status>.*)\)'
     for a_tag in a_tags:
         link = a_tag['href']
@@ -68,40 +85,40 @@ def latest_versions(session):
 
 def download(session):
     """Скачивает pdf- файл с документацией."""
-    downloads_dir = BASE_DIR / 'downloads'
+    downloads_dir = BASE_DIR / DOWNLOADS_DIR
     downloads_dir.mkdir(exist_ok=True)
     downloads_url = urljoin(MAIN_DOC_URL, 'download.html')
     response = get_response(session, downloads_url)
     if response is None:
         return
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = create_soup(session, downloads_url)
     table_tag = find_tag(soup, 'table', {'class': 'docutils'})
     pdf_a4_tag = table_tag.find_all('a',
                                     {'href': re.compile(r'.+pdf-a4\.zip$')})
     for url in pdf_a4_tag:
-        if 'Download' in url.text:
-            pdf_a4_link = url['href']
-            archive_url = urljoin(downloads_url, pdf_a4_link)
-            filename = archive_url.split('/')[-1]
-            archive_path = downloads_dir / filename
-            response = session.get(archive_url)
-            with open(archive_path, 'wb') as file:
-                file.write(response.content)
-    logging.info(f'Архив был загружен и сохранён: {archive_path}')
+        if 'Download' not in url.text:
+            continue
+        pdf_a4_link = url['href']
+        archive_url = urljoin(downloads_url, pdf_a4_link)
+        filename = archive_url.split('/')[-1]
+        archive_path = downloads_dir / filename
+        response = session.get(archive_url)
+        with open(archive_path, 'wb') as file:
+            file.write(response.content)
+        logging.info(DOWNLOAD_MESSAGE.format(archive_path=archive_path))
 
 
 def pep(session):
-    response = get_response(session, MAIN_PEP_URL)
-    if response is None:
-        return
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = create_soup(session, MAIN_PEP_URL)
     numerical_table_tag = find_tag(soup,
                                    'section',
                                    attrs={'id': 'numerical-index'})
     body_table_tag = find_tag(numerical_table_tag, 'tbody')
     pep_rows = body_table_tag.find_all('tr')
-    results = [('Cтатус', 'Количество')]
+    results = [PEPS_TITLE]
     count_of_statuses = {}
+    incorrect_status_messages = []
+
     for row in tqdm(pep_rows):
         preview_status = find_tag(row, 'td').text[1:]
         pep_a_tag = find_tag(row, 'a')
@@ -109,20 +126,23 @@ def pep(session):
         response = get_response(session, pep_link)
         if response is None:
             continue
-        sibling_soup = BeautifulSoup(response.text, 'lxml')
+        sibling_soup = create_soup(session, pep_link)
         status_tag = sibling_soup.find(string='Status')
         status_on_peps_page = status_tag.parent.find_next_sibling().text
         count_of_statuses[status_on_peps_page] = count_of_statuses.get(
             status_on_peps_page, 0) + 1
         if status_on_peps_page not in EXPECTED_STATUS[preview_status]:
-            logging.info(
-                f'Несовпадающие статусы:\n'
-                f'{pep_link}\n'
-                f'Cтатус в карточке: {status_on_peps_page}\n'
-                f'Ожидаемые статусы: {EXPECTED_STATUS[preview_status]}'
+            incorrect_status_messages.append(
+                INCORRECT_STATUS_MESSAGE.format(
+                    pep_link=pep_link, status_on_peps_page=status_on_peps_page,
+                    expected_status=EXPECTED_STATUS[preview_status])
             )
     results.extend(sorted(count_of_statuses.items()))
-    results.append(('Total', len(pep_rows)))
+    results.append((PEPS_TOTAL, len(pep_rows)))
+
+    for message in incorrect_status_messages:
+        logging.info(message)
+
     return results
 
 
@@ -137,18 +157,23 @@ MODE_TO_FUNCTION = {
 def main():
     """Основная функция."""
     configure_logging()
-    logging.info('Парсер запущен')
+    logging.info(PARSER_START_MESSAGE)
     arg_parser = configure_argument_parser(MODE_TO_FUNCTION.keys())
-    args = arg_parser.parse_args()
-    logging.info(f'Аргументы командной строки: {args}')
-    session = requests_cache.CachedSession()
-    if args.clear_cache:
-        session.cache.clear()
-    parser_mode = args.mode
-    results = MODE_TO_FUNCTION[parser_mode](session)
-    if results is not None:
-        control_output(results, args)
-    logging.info('Парсер завершил работу.')
+    try:
+        args = arg_parser.parse_args()
+        logging.info(PARSER_ARGS_MESSAGE.format(args=args))
+        session = requests_cache.CachedSession()
+        if args.clear_cache:
+            session.cache.clear()
+        parser_mode = args.mode
+        results = MODE_TO_FUNCTION.get(parser_mode)
+        if results is not None:
+            results = results(session)
+            if results is not None:
+                control_output(results, args)
+        logging.info(PARSER_STOP_MESSAGE)
+    except RuntimeError as error:
+        logging.exception(ERROR_MESSAGE.format(error=error))
 
 
 if __name__ == '__main__':

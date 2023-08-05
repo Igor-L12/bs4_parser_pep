@@ -4,27 +4,34 @@ import logging
 
 from prettytable import PrettyTable
 
-from constants import BASE_DIR, DATETIME_FORMAT
+from constants import (BASE_DIR, DATETIME_FORMAT, FILE_CHOICE, PRETTY_CHOICE,
+                       RESULTS_DIR)
 
+LOG_RESULT_MESSAGE = 'Файл с результатами был сохранён: {}'
 
 def control_output(results, cli_args):
     """Вызывает соответствующую функцию вывода."""
     output = cli_args.output
-    if output == 'pretty':
-        pretty_output(results)
-    elif output == 'file':
-        file_output(results, cli_args)
+
+    output_functions = {
+        PRETTY_CHOICE: pretty_output,
+        FILE_CHOICE: file_output,
+    }
+
+    if output in output_functions:
+        output_function = output_functions[output]
+        output_function(results, cli_args)
     else:
-        default_output(results)
+        default_output(results, cli_args)
 
 
-def default_output(results):
+def default_output(results, cli_args):
     """Выводит данные в консоль."""
     for row in results:
         print(*row)
 
 
-def pretty_output(results):
+def pretty_output(results, cli_args):
     """Выводит данные в консоль в виде таблицы."""
     table = PrettyTable()
     table.field_names = results[0]
@@ -35,7 +42,7 @@ def pretty_output(results):
 
 def file_output(results, cli_args):
     """Сохраняет данные в csv файл."""
-    results_dir = BASE_DIR / 'results'
+    results_dir = BASE_DIR / RESULTS_DIR
     results_dir.mkdir(exist_ok=True)
     parser_mode = cli_args.mode
     now = dt.datetime.now()
@@ -43,6 +50,6 @@ def file_output(results, cli_args):
     file_name = f'{parser_mode}_{now_formatted}.csv'
     file_path = results_dir / file_name
     with open(file_path, 'w', encoding='utf-8') as f:
-        writer = csv.writer(f, dialect='unix')
+        writer = csv.writer(f, dialect=csv.unix_dialect)
         writer.writerows(results)
-    logging.info(f'Файл с результатами был сохранён: {file_path}')
+    logging.info(LOG_RESULT_MESSAGE.format(file_path))
