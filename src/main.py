@@ -55,8 +55,7 @@ def whats_new(session):
             dl_text = dl.text.replace('\n', ' ')
             results.append((version_link, h1_text, dl_text))
         except ConnectionError:
-                    log_messages.append(NOT_FOUND_MESSAGE.format(
-                url=version_link))
+            log_messages.append(NOT_FOUND_MESSAGE.format(url=version_link))
 
     for message in log_messages:
         logging.info(message)
