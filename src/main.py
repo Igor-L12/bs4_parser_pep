@@ -8,6 +8,7 @@ from tqdm import tqdm
 from configs import configure_argument_parser, configure_logging
 from constants import (BASE_DIR, DOWNLOADS_DIR, EXPECTED_STATUS, MAIN_DOC_URL,
                        MAIN_PEP_URL)
+from collections import defaultdict
 from exceptions import ParserFindTagException
 from outputs import control_output
 from utils import create_soup, find_tag, get_response
@@ -34,9 +35,6 @@ ERROR_MESSAGE = 'Произошла шибка: {error}'
 def whats_new(session):
     """Собирает данные об изменениях в версиях."""
     whats_new_url = urljoin(MAIN_DOC_URL, 'whatsnew/')
-    response = get_response(session, whats_new_url)
-    if response is None:
-        return
     soup = create_soup(session, whats_new_url)
     main_div = find_tag(soup, 'section', attrs={'id': 'what-s-new-in-python'})
     div_with_ul = find_tag(main_div, 'div', attrs={'class': 'toctree-wrapper'})
@@ -44,20 +42,24 @@ def whats_new(session):
                                               attrs={'class': 'toctree-l1'})
     results = [WHATS_NEW_TITLE]
 
+    log_messages = []
+
     for section in tqdm(sections_by_python):
         version_a_tag = find_tag(section, 'a')
         version_link = urljoin(whats_new_url, version_a_tag['href'])
+        soup = create_soup(session, version_link)
         response = get_response(session, version_link)
         if response is None:
-            logging.warning(NOT_FOUND_MESSAGE.format(version_link=version_link)
-                            )
-            continue
-        soup = create_soup(session, version_link)
+            log_messages.append(NOT_FOUND_MESSAGE.format(version_link=version_link))
         h1 = find_tag(soup, 'h1')
         h1_text = h1.text.replace(chr(182), '')
         dl = find_tag(soup, 'dl')
         dl_text = dl.text.replace('\n', ' ')
         results.append((version_link, h1_text, dl_text))
+
+    for message in log_messages:
+        logging.info(message)
+
     return results
 
 
@@ -118,20 +120,18 @@ def pep(session):
     pep_rows = body_table_tag.find_all('tr')
     results = [PEPS_TITLE]
     count_of_statuses = {}
-    incorrect_status_messages = []
 
+    count_of_statuses = defaultdict(int)
+    incorrect_status_messages = []
+    
     for row in tqdm(pep_rows):
         preview_status = find_tag(row, 'td').text[1:]
         pep_a_tag = find_tag(row, 'a')
         pep_link = urljoin(MAIN_PEP_URL, pep_a_tag['href'])
-        response = get_response(session, pep_link)
-        if response is None:
-            continue
         sibling_soup = create_soup(session, pep_link)
         status_tag = sibling_soup.find(string='Status')
         status_on_peps_page = status_tag.parent.find_next_sibling().text
-        count_of_statuses[status_on_peps_page] = count_of_statuses.get(
-            status_on_peps_page, 0) + 1
+        count_of_statuses[status_on_peps_page] += 1
         if status_on_peps_page not in EXPECTED_STATUS[preview_status]:
             incorrect_status_messages.append(
                 INCORRECT_STATUS_MESSAGE.format(
@@ -173,7 +173,7 @@ def main():
             if results is not None:
                 control_output(results, args)
         logging.info(PARSER_STOP_MESSAGE)
-    except RuntimeError as error:
+    except Exception as error:
         logging.exception(ERROR_MESSAGE.format(error=error))
 
 

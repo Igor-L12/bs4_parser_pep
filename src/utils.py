@@ -28,6 +28,6 @@ def find_tag(soup, tag, attrs=None):
     return searched_tag
 
 
-def create_soup(session, url):
+def create_soup(session, url, features='lxml'):
     response = get_response(session, url)
-    return BeautifulSoup(response.text, 'lxml')
+    return BeautifulSoup(response.text, features=features)

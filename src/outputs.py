@@ -10,22 +10,6 @@ from constants import (BASE_DIR, DATETIME_FORMAT, FILE_CHOICE, PRETTY_CHOICE,
 LOG_RESULT_MESSAGE = 'Файл с результатами был сохранён: {}'
 
 
-def control_output(results, cli_args):
-    """Вызывает соответствующую функцию вывода."""
-    output = cli_args.output
-
-    output_functions = {
-        PRETTY_CHOICE: pretty_output,
-        FILE_CHOICE: file_output,
-    }
-
-    if output in output_functions:
-        output_function = output_functions[output]
-        output_function(results, cli_args)
-    else:
-        default_output(results, cli_args)
-
-
 def default_output(results, cli_args):
     """Выводит данные в консоль."""
     for row in results:
@@ -54,3 +38,17 @@ def file_output(results, cli_args):
         writer = csv.writer(f, dialect=csv.unix_dialect)
         writer.writerows(results)
     logging.info(LOG_RESULT_MESSAGE.format(file_path))
+
+
+OUTPUT_FUNCTION = {
+    PRETTY_CHOICE: pretty_output,
+    FILE_CHOICE: file_output,
+}
+
+
+def control_output(results, cli_args):
+    """Вызывает соответствующую функцию вывода."""
+    output = cli_args.output
+
+    output_function = OUTPUT_FUNCTION.get(output, default_output)
+    output_function(results, cli_args)
