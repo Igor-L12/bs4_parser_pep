@@ -72,3 +72,4 @@ python main.py [вариант парсера] -o file
 ```
 
 ### Автор
+- [Любаев Игорь](https://github.com/Igor-L12 "GitHub")
