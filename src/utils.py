@@ -4,7 +4,6 @@ from requests import RequestException
 from exceptions import ParserFindTagException
 
 REQUEST_ERROR_MESSAGE = 'Возникла ошибка при загрузке страницы {url} {error}'
-
 TAG_NOT_FOUND_ERROR_MESSAGE = 'Не найден тег {} {}'
 
 

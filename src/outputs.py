@@ -49,6 +49,5 @@ OUTPUT_FUNCTION = {
 def control_output(results, cli_args):
     """Вызывает соответствующую функцию вывода."""
     output = cli_args.output
-
     output_function = OUTPUT_FUNCTION.get(output, default_output)
     output_function(results, cli_args)
