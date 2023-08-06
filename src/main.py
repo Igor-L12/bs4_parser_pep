@@ -14,7 +14,7 @@ from outputs import control_output
 from utils import create_soup, find_tag, get_response
 
 WHATS_NEW_TITLE = ('Ссылка на статью', 'Заголовок', 'Редактор, Автор')
-NOT_FOUND_MESSAGE = 'Не удалось получить ответ для URL: {version_link}'
+NOT_FOUND_MESSAGE = 'Не удалось получить ответ для URL: {url}'
 LATEST_VERSIONS_MESSAGE = 'Ничего не найдено'
 LATEST_VERSIONS_TITLE = ('Ссылка на документацию', 'Версия', 'Статус')
 DOWNLOAD_MESSAGE = 'Архив был загружен и сохранён: {archive_path}'
@@ -47,16 +47,16 @@ def whats_new(session):
     for section in tqdm(sections_by_python):
         version_a_tag = find_tag(section, 'a')
         version_link = urljoin(whats_new_url, version_a_tag['href'])
-        soup = create_soup(session, version_link)
-        response = get_response(session, version_link)
-        if response is None:
-            log_messages.append(NOT_FOUND_MESSAGE.format(
-                version_link=version_link))
-        h1 = find_tag(soup, 'h1')
-        h1_text = h1.text.replace(chr(182), '')
-        dl = find_tag(soup, 'dl')
-        dl_text = dl.text.replace('\n', ' ')
-        results.append((version_link, h1_text, dl_text))
+        try:
+            soup = create_soup(session, version_link)
+            h1 = find_tag(soup, 'h1')
+            h1_text = h1.text.replace(chr(182), '')
+            dl = find_tag(soup, 'dl')
+            dl_text = dl.text.replace('\n', ' ')
+            results.append((version_link, h1_text, dl_text))
+        except ConnectionError:
+                    log_messages.append(NOT_FOUND_MESSAGE.format(
+                url=version_link))
 
     for message in log_messages:
         logging.info(message)
@@ -129,16 +129,20 @@ def pep(session):
         preview_status = find_tag(row, 'td').text[1:]
         pep_a_tag = find_tag(row, 'a')
         pep_link = urljoin(MAIN_PEP_URL, pep_a_tag['href'])
-        sibling_soup = create_soup(session, pep_link)
-        status_tag = sibling_soup.find(string='Status')
-        status_on_peps_page = status_tag.parent.find_next_sibling().text
-        count_of_statuses[status_on_peps_page] += 1
-        if status_on_peps_page not in EXPECTED_STATUS[preview_status]:
-            incorrect_status_messages.append(
-                INCORRECT_STATUS_MESSAGE.format(
+        try:
+            sibling_soup = create_soup(session, pep_link)
+            status_tag = sibling_soup.find(string='Status')
+            status_on_peps_page = status_tag.parent.find_next_sibling().text
+            count_of_statuses[status_on_peps_page] += 1
+            if status_on_peps_page not in EXPECTED_STATUS[preview_status]:
+                error_message = INCORRECT_STATUS_MESSAGE.format(
                     pep_link=pep_link, status_on_peps_page=status_on_peps_page,
-                    expected_status=EXPECTED_STATUS[preview_status])
-            )
+                    expected_status=EXPECTED_STATUS[preview_status]
+                )
+                incorrect_status_messages.append(error_message)
+        except ConnectionError:
+            incorrect_status_messages.append(NOT_FOUND_MESSAGE.format(
+                url=pep_link))
     results.extend(sorted(count_of_statuses.items()))
     results.append((PEPS_TOTAL, len(pep_rows)))
 

@@ -70,6 +70,9 @@ file - сохраняет информацию в формате csv в папк
 ```
 python main.py [вариант парсера] -o file
 ```
-
+### Технологии, которые были использованы:
+```
+Python 3.9, BeautifulSoup4, Document Object Model, PrettyTable
+```
 ### Автор
 - [Любаев Игорь](https://github.com/Igor-L12 "GitHub")

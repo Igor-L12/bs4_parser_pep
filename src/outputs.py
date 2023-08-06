@@ -43,11 +43,12 @@ def file_output(results, cli_args):
 OUTPUT_FUNCTION = {
     PRETTY_CHOICE: pretty_output,
     FILE_CHOICE: file_output,
+    None: default_output
 }
 
 
 def control_output(results, cli_args):
     """Вызывает соответствующую функцию вывода."""
     output = cli_args.output
-    output_function = OUTPUT_FUNCTION.get(output, default_output)
+    output_function = OUTPUT_FUNCTION.get(output)
     output_function(results, cli_args)
