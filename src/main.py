@@ -50,7 +50,8 @@ def whats_new(session):
         soup = create_soup(session, version_link)
         response = get_response(session, version_link)
         if response is None:
-            log_messages.append(NOT_FOUND_MESSAGE.format(version_link=version_link))
+            log_messages.append(NOT_FOUND_MESSAGE.format(version_link=
+                                                         version_link))
         h1 = find_tag(soup, 'h1')
         h1_text = h1.text.replace(chr(182), '')
         dl = find_tag(soup, 'dl')
@@ -123,7 +124,7 @@ def pep(session):
 
     count_of_statuses = defaultdict(int)
     incorrect_status_messages = []
-    
+
     for row in tqdm(pep_rows):
         preview_status = find_tag(row, 'td').text[1:]
         pep_a_tag = find_tag(row, 'a')
